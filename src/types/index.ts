@@ -1,3 +1,4 @@
+// src/types/index.ts - Add missing fields
 export interface User {
   id: string;
   name: string;
@@ -18,8 +19,11 @@ export interface Task {
   id: string;
   projectId: string;
   title: string;
+  description?: string;
   status: 'todo' | 'doing' | 'done';
+  priority?: 'low' | 'medium' | 'high';
   assignedTo?: User;
+  dueDate?: Date;
   createdAt: Date;
 }
 
@@ -33,7 +37,7 @@ export interface Message {
 
 export interface Notification {
   id: string;
-  type: 'task_assigned' | 'project_completed';
+  type: string;
   message: string;
   read: boolean;
   timestamp: Date;

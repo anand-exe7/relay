@@ -31,7 +31,7 @@ export function ChatPanel({ messages, currentUser, onSendMessage, onClose }: Cha
   };
 
   return (
-    <div className="w-80 h-screen bg-card border-l border-border flex flex-col animate-slide-in">
+    <div className="w-80 h-90 bg-card border-l border-border flex flex-col animate-slide-in">
       {/* Header */}
       <div className="p-4 border-b border-border flex items-center justify-between">
         <h3 className="font-display font-semibold text-foreground">Project Chat</h3>

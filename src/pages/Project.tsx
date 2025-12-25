@@ -1,4 +1,5 @@
-import { useState } from 'react';
+// src/pages/Project.tsx - Updated with real API calls
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, MessageCircle, Search, Filter } from 'lucide-react';
 import { ProjectSidebar } from '@/components/layout/ProjectSidebar';
@@ -10,76 +11,168 @@ import { AddMemberModal } from '@/components/modals/AddMemberModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useNotifications } from '@/hooks/useNotifications';
-import { Task, User, Message, TaskStatus } from '@/types';
+import { Task, User, Message, TaskStatus, Project } from '@/types';
 import { api } from '@/lib/api';
+import { socket, SOCKET_EVENTS } from '@/lib/socket';
+import { toast } from 'sonner';
 
-const mockUser: User = { id: 'user-1', name: 'You', email: 'you@example.com' };
-const mockMembers: User[] = [mockUser, { id: '2', name: 'Alice', email: 'alice@example.com' }, { id: '3', name: 'Bob', email: 'bob@example.com' }];
-
-const initialTasks: Task[] = [
-  { id: '1', projectId: '1', title: 'Design homepage mockup', status: 'todo', createdAt: new Date() },
-  { id: '2', projectId: '1', title: 'Set up database schema', status: 'doing', assignedTo: mockMembers[1], createdAt: new Date() },
-  { id: '3', projectId: '1', title: 'Write API documentation', status: 'done', assignedTo: mockUser, createdAt: new Date() },
-];
-
-export default function Project() {
-  const { id } = useParams();
+export default function ProjectPage() {
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [project, setProject] = useState<Project | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [chatOpen, setChatOpen] = useState(false);
   const [createTaskOpen, setCreateTaskOpen] = useState(false);
   const [addMemberOpen, setAddMemberOpen] = useState(false);
-  const [joinCode, setJoinCode] = useState('ABC123');
   const [searchQuery, setSearchQuery] = useState('');
-  const { notifications, unreadCount, markAsRead, markAllAsRead, addNotification } = useNotifications();
+  const [loading, setLoading] = useState(true);
+  const { notifications, markAsRead, markAllAsRead } = useNotifications();
+
+  const currentUser: User = JSON.parse(localStorage.getItem('user') || '{}');
+
+  useEffect(() => {
+    if (id) {
+      loadProjectData();
+      socket.connect();
+      socket.joinProject(id);
+
+      // Socket event listeners
+      socket.on(SOCKET_EVENTS.TASK_CREATED, handleTaskCreated);
+      socket.on(SOCKET_EVENTS.TASK_UPDATED, handleTaskUpdated);
+      socket.on(SOCKET_EVENTS.TASK_DELETED, handleTaskDeleted);
+      socket.on(SOCKET_EVENTS.MESSAGE_NEW, handleNewMessage);
+
+      return () => {
+        socket.leaveProject(id);
+        socket.off(SOCKET_EVENTS.TASK_CREATED);
+        socket.off(SOCKET_EVENTS.TASK_UPDATED);
+        socket.off(SOCKET_EVENTS.TASK_DELETED);
+        socket.off(SOCKET_EVENTS.MESSAGE_NEW);
+      };
+    }
+  }, [id]);
+
+  const loadProjectData = async () => {
+    try {
+      setLoading(true);
+      const [projectData, tasksData, messagesData] = await Promise.all([
+        api.getProjectById(id!),
+        api.getTasks(id!),
+        api.getMessages(id!),
+      ]);
+      setProject(projectData);
+      setTasks(tasksData);
+      setMessages(messagesData);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to load project');
+      navigate('/');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTaskCreated = (task: Task) => {
+    setTasks(prev => [...prev, task]);
+  };
+
+  const handleTaskUpdated = (task: Task) => {
+    setTasks(prev => prev.map(t => t.id === task.id ? task : t));
+  };
+
+  const handleTaskDeleted = ({ taskId }: { taskId: string }) => {
+    setTasks(prev => prev.filter(t => t.id !== taskId));
+  };
+
+  const handleNewMessage = (message: Message) => {
+    setMessages(prev => [...prev, message]);
+  };
 
   const handleCreateTask = async (title: string, assignedToId?: string) => {
-    const newTask = await api.createTask(id!, title);
-    const assignedTo = assignedToId ? mockMembers.find(m => m.id === assignedToId) : undefined;
-    setTasks(prev => [...prev, { ...newTask, assignedTo }]);
-    if (assignedTo) addNotification({ type: 'task_assigned', message: `Task "${title}" assigned to ${assignedTo.name}`, read: false });
+    try {
+      const taskData = {
+        title,
+        assignedTo: assignedToId,
+      };
+      await api.createTask(id!, taskData);
+      toast.success('Task created successfully!');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to create task');
+    }
   };
 
-  const handleTaskStatusChange = (taskId: string, status: TaskStatus) => {
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status } : t));
-    const allDone = tasks.every(t => t.id === taskId ? status === 'done' : t.status === 'done');
-    if (allDone && tasks.length > 0) addNotification({ type: 'project_completed', message: 'All tasks completed!', read: false });
+  const handleTaskStatusChange = async (taskId: string, status: TaskStatus) => {
+    try {
+      await api.updateTaskStatus(taskId, status);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to update task status');
+    }
   };
 
-  const handleTaskAssign = (taskId: string, memberId: string) => {
-    const member = mockMembers.find(m => m.id === memberId);
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, assignedTo: member } : t));
-    if (member) addNotification({ type: 'task_assigned', message: `Task assigned to ${member.name}`, read: false });
+  const handleTaskAssign = async (taskId: string, memberId: string) => {
+    try {
+      await api.assignTask(taskId, memberId);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to assign task');
+    }
   };
 
   const handleSendMessage = async (text: string) => {
-    const msg = await api.sendMessage(id!, text);
-    setMessages(prev => [...prev, msg]);
+    try {
+      await api.sendMessage(id!, text);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to send message');
+    }
   };
 
   const handleGenerateCode = async () => {
-    const code = await api.generateJoinCode(id!);
-    setJoinCode(code);
+    try {
+      const newCode = await api.generateJoinCode(id!);
+      if (project) {
+        setProject({ ...project, joinCode: newCode });
+      }
+      toast.success('New join code generated!');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to generate code');
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="text-muted-foreground">Loading project...</div>
+      </div>
+    );
+  }
+
+  if (!project) {
+    return null;
+  }
+
+  const isAdmin = project.adminId === currentUser.id;
 
   return (
     <div className="flex min-h-screen bg-background">
-      <ProjectSidebar projectName="Marketing Campaign" members={mockMembers} onAddMember={() => setAddMemberOpen(true)} />
+      <ProjectSidebar 
+        projectName={project.name} 
+        members={project.members} 
+        onAddMember={() => setAddMemberOpen(true)}
+        completedTasks={tasks.filter(t => t.status === 'done').length}
+        totalTasks={tasks.length}
+        taskProgress={tasks.length > 0 ? (tasks.filter(t => t.status === 'done').length / tasks.length) * 100 : 0}
+      />
 
       <div className="flex-1 flex flex-col">
-        {/* Top Bar / Navbar */}
         <header className="h-16 border-b border-border bg-card flex items-center justify-between px-6">
           <div className="flex items-center gap-4">
             <Button variant="ghost" onClick={() => navigate('/')} className="gap-2 text-foreground hover:bg-accent">
               <ArrowLeft className="w-4 h-4" /> Back
             </Button>
             <div className="h-6 w-px bg-border" />
-            <h1 className="font-display font-semibold text-foreground">Marketing Campaign</h1>
+            <h1 className="font-display font-semibold text-foreground">{project.name}</h1>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -89,11 +182,6 @@ export default function Project() {
                 className="pl-9 w-64 bg-accent border-border text-foreground placeholder:text-muted-foreground"
               />
             </div>
-
-            {/* Filter */}
-            <Button variant="outline" className="gap-2 border-border text-foreground hover:bg-accent">
-              <Filter className="w-4 h-4" /> Filter
-            </Button>
 
             <div className="h-6 w-px bg-border" />
 
@@ -109,13 +197,23 @@ export default function Project() {
         </header>
 
         <div className="flex flex-1 overflow-hidden">
-          <KanbanBoard tasks={tasks} members={mockMembers} onCreateTask={() => setCreateTaskOpen(true)} onTaskStatusChange={handleTaskStatusChange} onTaskAssign={handleTaskAssign} />
-          {chatOpen && <ChatPanel messages={messages} currentUser={mockUser} onSendMessage={handleSendMessage} onClose={() => setChatOpen(false)} />}
+          <KanbanBoard 
+            tasks={tasks} 
+            members={project.members} 
+            onCreateTask={() => isAdmin && setCreateTaskOpen(true)} 
+            onTaskStatusChange={handleTaskStatusChange} 
+            onTaskAssign={handleTaskAssign} 
+          />
+          {chatOpen && <ChatPanel messages={messages} currentUser={currentUser} onSendMessage={handleSendMessage} onClose={() => setChatOpen(false)} />}
         </div>
       </div>
 
-      <CreateTaskModal open={createTaskOpen} onClose={() => setCreateTaskOpen(false)} onCreate={handleCreateTask} members={mockMembers} />
-      <AddMemberModal open={addMemberOpen} onClose={() => setAddMemberOpen(false)} joinCode={joinCode} onGenerateNewCode={handleGenerateCode} />
+      {isAdmin && (
+        <>
+          <CreateTaskModal open={createTaskOpen} onClose={() => setCreateTaskOpen(false)} onCreate={handleCreateTask} members={project.members} />
+          <AddMemberModal open={addMemberOpen} onClose={() => setAddMemberOpen(false)} joinCode={project.joinCode} onGenerateNewCode={handleGenerateCode} />
+        </>
+      )}
     </div>
   );
 }

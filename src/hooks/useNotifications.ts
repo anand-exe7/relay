@@ -1,34 +1,16 @@
+// src/hooks/useNotifications.ts - Updated with API calls
 import { useState, useCallback, useEffect } from 'react';
 import { Notification } from '@/types';
 import { socket, SOCKET_EVENTS } from '@/lib/socket';
+import { api } from '@/lib/api';
 
 export function useNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  const addNotification = useCallback((notification: Omit<Notification, 'id' | 'timestamp'>) => {
-    const newNotification: Notification = {
-      ...notification,
-      id: `notif-${Date.now()}`,
-      timestamp: new Date(),
-    };
-    setNotifications(prev => [newNotification, ...prev]);
-  }, []);
-
-  const markAsRead = useCallback((id: string) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === id ? { ...n, read: true } : n))
-    );
-  }, []);
-
-  const markAllAsRead = useCallback(() => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  }, []);
-
-  const unreadCount = notifications.filter(n => !n.read).length;
-
   useEffect(() => {
-    const handleNewNotification = (data: unknown) => {
-      const notification = data as Notification;
+    loadNotifications();
+
+    const handleNewNotification = (notification: Notification) => {
       setNotifications(prev => [notification, ...prev]);
     };
 
@@ -39,10 +21,38 @@ export function useNotifications() {
     };
   }, []);
 
+  const loadNotifications = async () => {
+    try {
+      const data = await api.getNotifications();
+      setNotifications(data);
+    } catch (error) {
+      console.error('Failed to load notifications:', error);
+    }
+  };
+
+  const markAsRead = useCallback(async (id: string) => {
+    try {
+      await api.markNotificationRead(id);
+      setNotifications(prev => prev.map(n => (n.id === id ? { ...n, read: true } : n)));
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+    }
+  }, []);
+
+  const markAllAsRead = useCallback(async () => {
+    try {
+      await api.markAllNotificationsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    } catch (error) {
+      console.error('Failed to mark all notifications as read:', error);
+    }
+  }, []);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
   return {
     notifications,
     unreadCount,
-    addNotification,
     markAsRead,
     markAllAsRead,
   };

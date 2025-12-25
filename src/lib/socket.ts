@@ -1,80 +1,84 @@
-// Placeholder Socket.io client - ready to be connected to a real socket server
+// src/lib/socket.ts - Real Socket.io implementation
+import { io, Socket } from 'socket.io-client';
 
-type EventCallback = (data: unknown) => void;
+const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
 
-interface SocketEvents {
-  [key: string]: EventCallback[];
-}
-
-class SocketPlaceholder {
-  private events: SocketEvents = {};
-  private connected = false;
+class SocketManager {
+  private socket: Socket | null = null;
 
   connect() {
-    console.log('[Socket] Connecting...');
-    this.connected = true;
-    console.log('[Socket] Connected (placeholder)');
+    const token = localStorage.getItem('token');
+    
+    this.socket = io(SOCKET_URL, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+    });
+
+    this.socket.on('connect', () => {
+      console.log('[Socket] Connected:', this.socket?.id);
+    });
+
+    this.socket.on('disconnect', () => {
+      console.log('[Socket] Disconnected');
+    });
+
+    this.socket.on('connect_error', (error) => {
+      console.error('[Socket] Connection error:', error);
+    });
+
+    return this.socket;
   }
 
   disconnect() {
-    console.log('[Socket] Disconnecting...');
-    this.connected = false;
-  }
-
-  emit(event: string, data?: unknown) {
-    console.log(`[Socket] Emit "${event}":`, data);
-    // Placeholder: would send to server
-  }
-
-  on(event: string, callback: EventCallback) {
-    if (!this.events[event]) {
-      this.events[event] = [];
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
     }
-    this.events[event].push(callback);
-    console.log(`[Socket] Registered listener for "${event}"`);
   }
 
-  off(event: string, callback?: EventCallback) {
-    if (!this.events[event]) return;
-    
-    if (callback) {
-      this.events[event] = this.events[event].filter(cb => cb !== callback);
+  emit(event: string, data?: any) {
+    if (this.socket?.connected) {
+      this.socket.emit(event, data);
     } else {
-      delete this.events[event];
+      console.warn('[Socket] Not connected, cannot emit:', event);
     }
-    console.log(`[Socket] Removed listener for "${event}"`);
   }
 
-  // For testing: simulate receiving an event
-  _simulateEvent(event: string, data: unknown) {
-    if (this.events[event]) {
-      this.events[event].forEach(cb => cb(data));
+  on(event: string, callback: (...args: any[]) => void) {
+    if (this.socket) {
+      this.socket.on(event, callback);
     }
+  }
+
+  off(event: string, callback?: (...args: any[]) => void) {
+    if (this.socket) {
+      this.socket.off(event, callback);
+    }
+  }
+
+  joinProject(projectId: string) {
+    this.emit('join:project', projectId);
+  }
+
+  leaveProject(projectId: string) {
+    this.emit('leave:project', projectId);
   }
 
   isConnected() {
-    return this.connected;
+    return this.socket?.connected || false;
   }
 }
 
-export const socket = new SocketPlaceholder();
+export const socketManager = new SocketManager();
+export const socket = socketManager;
 
-// Socket event names for consistency
+// Socket event names
 export const SOCKET_EVENTS = {
-  // Task events
-  TASK_CREATE: 'task:create',
   TASK_CREATED: 'task:created',
-  TASK_UPDATE: 'task:update',
   TASK_UPDATED: 'task:updated',
-  
-  // Chat events
-  CHAT_MESSAGE: 'chat:message',
-  CHAT_RECEIVED: 'chat:received',
-  
-  // Notification events
+  TASK_DELETED: 'task:deleted',
+  MESSAGE_NEW: 'message:new',
   NOTIFICATION_NEW: 'notification:new',
-  
-  // Member events
-  MEMBER_JOINED: 'member:joined',
-  MEMBER_LEFT: 'member:left',
+  MEMBER_ADDED: 'member:added',
+  PROJECT_DELETED: 'project:deleted',
 } as const;
