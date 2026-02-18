@@ -3,20 +3,42 @@ import { Plus, Users, FolderKanban, Settings, HelpCircle, Star, Clock, Archive, 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { toast } from 'sonner';
 
 interface DashboardSidebarProps {
   onCreateProject: () => void;
   onJoinProject: (code: string) => void;
 }
 
+type QuickLinkView = 'all' | 'starred' | 'recent' | 'archived';
+
 export function DashboardSidebar({ onCreateProject, onJoinProject }: DashboardSidebarProps) {
   const [joinCode, setJoinCode] = useState('');
+  const [activeView, setActiveView] = useState<QuickLinkView>('all');
 
   const handleJoin = () => {
     if (joinCode.trim()) {
       onJoinProject(joinCode.trim());
+      toast.success(`Joining project with code: ${joinCode.trim()}`);
       setJoinCode('');
     }
+  };
+
+  const handleQuickLinkClick = (view: QuickLinkView, label: string) => {
+    setActiveView(view);
+    toast.info(`Viewing: ${label}`);
+  };
+
+  const handleSignOut = () => {
+    toast.success('Signed out successfully');
+  };
+
+  const handlePreferences = () => {
+    toast.info('Preferences settings opened');
+  };
+
+  const handleHelp = () => {
+    toast.info('Help & Support opened');
   };
 
   return (
@@ -48,15 +70,27 @@ export function DashboardSidebar({ onCreateProject, onJoinProject }: DashboardSi
         {/* Quick Links */}
         <div className="space-y-1">
           <p className="text-xs font-medium text-sidebar-muted uppercase tracking-wider px-2 mb-2">Quick Links</p>
-          <Button variant="ghost" className="w-full justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent">
-            <Star className="w-4 h-4" />
+          <Button 
+            variant="ghost" 
+            className={`w-full justify-start gap-3 text-sidebar-foreground ${activeView === 'starred' ? 'bg-sidebar-accent' : 'hover:bg-sidebar-accent'}`}
+            onClick={() => handleQuickLinkClick('starred', 'Starred Projects')}
+          >
+            <Star className={`w-4 h-4 ${activeView === 'starred' ? 'fill-current' : ''}`} />
             Starred Projects
           </Button>
-          <Button variant="ghost" className="w-full justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent">
+          <Button 
+            variant="ghost" 
+            className={`w-full justify-start gap-3 text-sidebar-foreground ${activeView === 'recent' ? 'bg-sidebar-accent' : 'hover:bg-sidebar-accent'}`}
+            onClick={() => handleQuickLinkClick('recent', 'Recent Activity')}
+          >
             <Clock className="w-4 h-4" />
             Recent Activity
           </Button>
-          <Button variant="ghost" className="w-full justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent">
+          <Button 
+            variant="ghost" 
+            className={`w-full justify-start gap-3 text-sidebar-foreground ${activeView === 'archived' ? 'bg-sidebar-accent' : 'hover:bg-sidebar-accent'}`}
+            onClick={() => handleQuickLinkClick('archived', 'Archived Projects')}
+          >
             <Archive className="w-4 h-4" />
             Archived
           </Button>
@@ -94,11 +128,19 @@ export function DashboardSidebar({ onCreateProject, onJoinProject }: DashboardSi
         {/* Settings Links */}
         <div className="space-y-1">
           <p className="text-xs font-medium text-sidebar-muted uppercase tracking-wider px-2 mb-2">Settings</p>
-          <Button variant="ghost" className="w-full justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent">
+          <Button 
+            variant="ghost" 
+            className="w-full justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent"
+            onClick={handlePreferences}
+          >
             <Settings className="w-4 h-4" />
             Preferences
           </Button>
-          <Button variant="ghost" className="w-full justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent">
+          <Button 
+            variant="ghost" 
+            className="w-full justify-start gap-3 text-sidebar-foreground hover:bg-sidebar-accent"
+            onClick={handleHelp}
+          >
             <HelpCircle className="w-4 h-4" />
             Help & Support
           </Button>
@@ -116,7 +158,11 @@ export function DashboardSidebar({ onCreateProject, onJoinProject }: DashboardSi
             <p className="text-xs text-sidebar-muted truncate">john@example.com</p>
           </div>
         </div>
-        <Button variant="ghost" className="w-full justify-start gap-3 text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent">
+        <Button 
+          variant="ghost" 
+          className="w-full justify-start gap-3 text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent"
+          onClick={handleSignOut}
+        >
           <LogOut className="w-4 h-4" />
           Sign Out
         </Button>
