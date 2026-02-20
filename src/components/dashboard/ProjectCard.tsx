@@ -2,18 +2,18 @@ import { Users, Calendar, Github, Code } from 'lucide-react';
 import { Project } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useRepoInfo, useIsGitHubConnected } from '@/hooks/useGitHub';
-import { getGitHubConfig } from '@/lib/github';
+import { useRepoInfo } from '@/hooks/useGitHub';
 
 interface ProjectCardProps {
   project: Project;
   onClick: () => void;
   onConnectGitHub?: () => void;
+  onDelete?: () => void;
 }
 
-export function ProjectCard({ project, onClick, onConnectGitHub }: ProjectCardProps) {
-  const config = getGitHubConfig(project.id);
-  const { data: repo } = useRepoInfo(project.id);
+export function ProjectCard({ project, onClick, onConnectGitHub, onDelete }: ProjectCardProps) {
+  const isGitHubConnected = project.github?.connected || false;
+  const { data: repo } = useRepoInfo(isGitHubConnected ? project.id : undefined);
 
   return (
     <Card onClick={onClick} className="group cursor-pointer bg-card hover:shadow-lg hover:shadow-primary/10 transition-all duration-200 border-border hover:border-primary/30">

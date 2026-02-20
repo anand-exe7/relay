@@ -9,6 +9,11 @@ import Dashboard from "./pages/Dashboard";
 import Project from "./pages/Project";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
+import Commits from "./pages/Commits";
+import Contributors from "./pages/Contributors";
+import Retrospective from "./pages/Retrospective";
+import TaskList from "./pages/TaskList";
+import Documents from "./pages/Documents";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +47,11 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/project/:id" element={<ProtectedRoute><Project /></ProtectedRoute>} />
+          <Route path="/project/:id/commits" element={<ProtectedRoute><Commits /></ProtectedRoute>} />
+          <Route path="/project/:id/contributors" element={<ProtectedRoute><Contributors /></ProtectedRoute>} />
+          <Route path="/project/:id/retrospective" element={<ProtectedRoute><Retrospective /></ProtectedRoute>} />
+          <Route path="/project/:id/tasks" element={<ProtectedRoute><TaskList /></ProtectedRoute>} />
+          <Route path="/project/:id/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

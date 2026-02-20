@@ -1,25 +1,29 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Users, FolderKanban, Settings, HelpCircle, Star, Clock, Archive, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
+import { api } from '@/lib/api';
+import { User } from '@/types';
 
 interface DashboardSidebarProps {
   onCreateProject: () => void;
   onJoinProject: (code: string) => void;
+  currentUser: User | null;
 }
 
 type QuickLinkView = 'all' | 'starred' | 'recent' | 'archived';
 
-export function DashboardSidebar({ onCreateProject, onJoinProject }: DashboardSidebarProps) {
+export function DashboardSidebar({ onCreateProject, onJoinProject, currentUser }: DashboardSidebarProps) {
+  const navigate = useNavigate();
   const [joinCode, setJoinCode] = useState('');
   const [activeView, setActiveView] = useState<QuickLinkView>('all');
 
   const handleJoin = () => {
     if (joinCode.trim()) {
       onJoinProject(joinCode.trim());
-      toast.success(`Joining project with code: ${joinCode.trim()}`);
       setJoinCode('');
     }
   };
@@ -30,7 +34,10 @@ export function DashboardSidebar({ onCreateProject, onJoinProject }: DashboardSi
   };
 
   const handleSignOut = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     toast.success('Signed out successfully');
+    navigate('/login');
   };
 
   const handlePreferences = () => {
@@ -40,6 +47,12 @@ export function DashboardSidebar({ onCreateProject, onJoinProject }: DashboardSi
   const handleHelp = () => {
     toast.info('Help & Support opened');
   };
+
+  const userInitials = currentUser?.name
+    ?.split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase() || 'U';
 
   return (
     <aside className="w-72 h-screen bg-sidebar border-r border-sidebar-border flex flex-col">
@@ -151,15 +164,15 @@ export function DashboardSidebar({ onCreateProject, onJoinProject }: DashboardSi
       <div className="p-4 border-t border-sidebar-border space-y-3">
         <div className="flex items-center gap-3 px-2">
           <div className="w-8 h-8 rounded-full bg-sidebar-accent flex items-center justify-center">
-            <span className="text-xs font-medium text-sidebar-foreground">JD</span>
+            <span className="text-xs font-medium text-sidebar-foreground">{userInitials}</span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-sidebar-foreground truncate">John Doe</p>
-            <p className="text-xs text-sidebar-muted truncate">john@example.com</p>
+            <p className="text-sm font-medium text-sidebar-foreground truncate">{currentUser?.name || 'User'}</p>
+            <p className="text-xs text-sidebar-muted truncate">{currentUser?.email || 'email@example.com'}</p>
           </div>
         </div>
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           className="w-full justify-start gap-3 text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent"
           onClick={handleSignOut}
         >

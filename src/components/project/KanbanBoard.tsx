@@ -9,6 +9,10 @@ interface KanbanBoardProps {
   onCreateTask: () => void;
   onTaskStatusChange: (taskId: string, status: TaskStatus) => void;
   onTaskAssign: (taskId: string, memberId: string) => void;
+  onDeleteTask?: (taskId: string) => void;
+  canCreateTask?: boolean;
+  currentUserId?: string;
+  isAdmin?: boolean;
 }
 
 export function KanbanBoard({
@@ -17,6 +21,10 @@ export function KanbanBoard({
   onCreateTask,
   onTaskStatusChange,
   onTaskAssign,
+  onDeleteTask,
+  canCreateTask = false,
+  currentUserId,
+  isAdmin = false,
 }: KanbanBoardProps) {
   const todoTasks = tasks.filter((t) => t.status === 'todo');
   const doingTasks = tasks.filter((t) => t.status === 'doing');
@@ -27,11 +35,13 @@ export function KanbanBoard({
       {/* Board Header */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="font-display text-2xl font-bold text-foreground">Task Board</h2>
-        <Button onClick={onCreateTask} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Create Task
-          <span className="text-xs opacity-70">(Admin)</span>
-        </Button>
+        {canCreateTask && (
+          <Button onClick={onCreateTask} className="gap-2">
+            <Plus className="w-4 h-4" />
+            Create Task
+            <span className="text-xs opacity-70">(Admin)</span>
+          </Button>
+        )}
       </div>
 
       {/* Kanban Columns */}
@@ -43,6 +53,9 @@ export function KanbanBoard({
           members={members}
           onTaskStatusChange={onTaskStatusChange}
           onTaskAssign={onTaskAssign}
+          onDeleteTask={onDeleteTask}
+          currentUserId={currentUserId}
+          isAdmin={isAdmin}
         />
         <KanbanColumn
           title="In Progress"
@@ -51,6 +64,9 @@ export function KanbanBoard({
           members={members}
           onTaskStatusChange={onTaskStatusChange}
           onTaskAssign={onTaskAssign}
+          onDeleteTask={onDeleteTask}
+          currentUserId={currentUserId}
+          isAdmin={isAdmin}
         />
         <KanbanColumn
           title="Done"
@@ -59,6 +75,9 @@ export function KanbanBoard({
           members={members}
           onTaskStatusChange={onTaskStatusChange}
           onTaskAssign={onTaskAssign}
+          onDeleteTask={onDeleteTask}
+          currentUserId={currentUserId}
+          isAdmin={isAdmin}
         />
       </div>
     </div>
