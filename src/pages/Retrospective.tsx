@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { BookOpen, Flame, GitPullRequest, Trophy, Activity } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,22 +9,26 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
-import { User } from '@/types';
-
-const mockMembers: User[] = [
-  { id: 'user-1', name: 'You', email: 'you@example.com' },
-  { id: '2', name: 'Alice', email: 'alice@example.com' },
-  { id: '3', name: 'Bob', email: 'bob@example.com' },
-];
+import { Project } from '@/types';
+import { api } from '@/lib/api';
 
 export default function Retrospective() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [project, setProject] = useState<Project | null>(null);
   const { data: commits = [] } = useCommits();
   const { data: heroes = [] } = useHeroMoments();
   const { data: decisions = [] } = useDecisionPoints();
   const { data: contributors = [] } = useContributors();
   const { data: repo } = useRepoInfo();
+
+  useEffect(() => {
+    if (id) {
+      api.getProjectById(id).then(setProject).catch(() => {});
+    }
+  }, [id]);
+
+  const members = project?.members || [];
 
   const timelineData = commits.reduce((acc, c) => {
     const day = format(new Date(c.date), 'MMM d');
@@ -42,7 +47,7 @@ export default function Retrospective() {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <ProjectSidebar projectName="Project" members={mockMembers} onAddMember={() => {}} />
+      <ProjectSidebar projectName={project?.name || 'Project'} members={members} onAddMember={() => {}} />
       <div className="flex-1 flex flex-col">
         <header className="h-16 border-b border-border bg-card flex items-center px-6">
           <div className="flex items-center gap-2">

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { GitCommit, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,20 +11,24 @@ import { HeroMomentBadge } from '@/components/project/HeroMomentBadge';
 import { detectHeroMoments } from '@/lib/github';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
-import { User } from '@/types';
-
-const mockMembers: User[] = [
-  { id: 'user-1', name: 'You', email: 'you@example.com' },
-  { id: '2', name: 'Alice', email: 'alice@example.com' },
-  { id: '3', name: 'Bob', email: 'bob@example.com' },
-];
+import { Project, User } from '@/types';
+import { api } from '@/lib/api';
 
 export default function Commits() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [authorFilter, setAuthorFilter] = useState('all');
+  const [project, setProject] = useState<Project | null>(null);
   const { data: commits = [], isLoading } = useCommits(authorFilter === 'all' ? undefined : authorFilter);
   const { data: contributors = [] } = useContributors();
+
+  useEffect(() => {
+    if (id) {
+      api.getProjectById(id).then(setProject).catch(() => {});
+    }
+  }, [id]);
+
+  const members = project?.members || [];
 
   const grouped = commits.reduce((acc, commit) => {
     const day = format(new Date(commit.date), 'yyyy-MM-dd');
@@ -38,7 +42,7 @@ export default function Commits() {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <ProjectSidebar projectName="Project" members={mockMembers} onAddMember={() => {}} />
+      <ProjectSidebar projectName={project?.name || 'Project'} members={members} onAddMember={() => {}} />
       <div className="flex-1 flex flex-col">
         <header className="h-16 border-b border-border bg-card flex items-center justify-between px-6">
           <div className="flex items-center gap-2">

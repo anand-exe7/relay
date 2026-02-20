@@ -1,22 +1,42 @@
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { fetchRepoInfo, fetchCommits, fetchContributors, fetchPullRequests, fetchCommitDetail, getGitHubConfig, detectHeroMoments, detectFlowPeriods, detectDecisionPoints } from '@/lib/github';
+import { fetchRepoInfo, fetchCommits, fetchContributors, fetchPullRequests, fetchCommitDetail, detectHeroMoments, detectFlowPeriods, detectDecisionPoints } from '@/lib/github';
 import { detectSkillsFromFiles } from '@/lib/skills';
 import { GitHubCommit, GitHubContributor } from '@/types';
+import { api } from '@/lib/api';
 
-function useConfig(projectId?: string) {
-  return getGitHubConfig(projectId);
+// Fetch GitHub config from backend for the current project
+function useGitHubConfigQuery(projectId?: string) {
+  const { id } = useParams();
+  const pid = projectId || id;
+  return useQuery({
+    queryKey: ['github-config', pid],
+    queryFn: () => api.getProjectGitHub(pid!),
+    enabled: !!pid,
+    staleTime: 30 * 60 * 1000, // 30 min — config rarely changes
+    gcTime: Infinity,           // never garbage collect during session
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
 }
 
-export function useProjectGitHubConfig() {
+export function useProjectGitHubConfig(projectId?: string) {
   const { id } = useParams();
-  return getGitHubConfig(id);
+  const pid = projectId || id;
+  const { data } = useGitHubConfigQuery(pid);
+  if (!data || !data.connected) return null;
+  return { owner: data.repoOwner, repo: data.repoName, token: data.token };
+}
+
+export function useIsGitHubConnected(projectId?: string) {
+  const config = useProjectGitHubConfig(projectId);
+  return !!config;
 }
 
 export function useRepoInfo(projectId?: string) {
   const { id } = useParams();
   const pid = projectId || id;
-  const config = useConfig(pid);
+  const config = useProjectGitHubConfig(pid);
   return useQuery({
     queryKey: ['github', 'repo', pid, config?.owner, config?.repo],
     queryFn: () => fetchRepoInfo(config!.owner, config!.repo, config!.token),
@@ -28,7 +48,7 @@ export function useRepoInfo(projectId?: string) {
 export function useCommits(author?: string, projectId?: string) {
   const { id } = useParams();
   const pid = projectId || id;
-  const config = useConfig(pid);
+  const config = useProjectGitHubConfig(pid);
   return useQuery({
     queryKey: ['github', 'commits', pid, config?.owner, config?.repo, author],
     queryFn: () => fetchCommits(config!.owner, config!.repo, config!.token, undefined, author),
@@ -40,7 +60,7 @@ export function useCommits(author?: string, projectId?: string) {
 export function useCommitDetails(shas: string[], projectId?: string) {
   const { id } = useParams();
   const pid = projectId || id;
-  const config = useConfig(pid);
+  const config = useProjectGitHubConfig(pid);
   return useQuery({
     queryKey: ['github', 'commit-details', pid, config?.owner, config?.repo, shas.join(',')],
     queryFn: async () => {
@@ -61,7 +81,7 @@ export function useCommitDetails(shas: string[], projectId?: string) {
 export function useContributors(projectId?: string) {
   const { id } = useParams();
   const pid = projectId || id;
-  const config = useConfig(pid);
+  const config = useProjectGitHubConfig(pid);
   return useQuery({
     queryKey: ['github', 'contributors', pid, config?.owner, config?.repo],
     queryFn: () => fetchContributors(config!.owner, config!.repo, config!.token),
@@ -73,7 +93,7 @@ export function useContributors(projectId?: string) {
 export function useContributorsWithSkills(projectId?: string) {
   const { id } = useParams();
   const pid = projectId || id;
-  const config = useConfig(pid);
+  const config = useProjectGitHubConfig(pid);
   const contributorsQuery = useContributors(pid);
   const commitsQuery = useCommits(undefined, pid);
 
@@ -107,7 +127,7 @@ export function useContributorsWithSkills(projectId?: string) {
 export function usePullRequests(state = 'all', projectId?: string) {
   const { id } = useParams();
   const pid = projectId || id;
-  const config = useConfig(pid);
+  const config = useProjectGitHubConfig(pid);
   return useQuery({
     queryKey: ['github', 'prs', pid, config?.owner, config?.repo, state],
     queryFn: () => fetchPullRequests(config!.owner, config!.repo, config!.token, state),
@@ -120,7 +140,7 @@ export function useHeroMoments(projectId?: string) {
   const { id } = useParams();
   const pid = projectId || id;
   const commitsQuery = useCommits(undefined, pid);
-  const config = useConfig(pid);
+  const config = useProjectGitHubConfig(pid);
 
   return useQuery({
     queryKey: ['github', 'heroes', pid, config?.owner, config?.repo],
@@ -150,10 +170,4 @@ export function useDecisionPoints(projectId?: string) {
     enabled: !!prsQuery.data,
     staleTime: 15 * 60 * 1000,
   });
-}
-
-export function useIsGitHubConnected(projectId?: string) {
-  const { id } = useParams();
-  const pid = projectId || id;
-  return !!getGitHubConfig(pid);
 }

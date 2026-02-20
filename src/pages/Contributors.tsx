@@ -1,25 +1,30 @@
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Users } from 'lucide-react';
 import { useContributorsWithSkills } from '@/hooks/useGitHub';
 import { ContributorCard } from '@/components/project/ContributorCard';
 import { ProjectSidebar } from '@/components/layout/ProjectSidebar';
 import { motion } from 'framer-motion';
-import { User } from '@/types';
-
-const mockMembers: User[] = [
-  { id: 'user-1', name: 'You', email: 'you@example.com' },
-  { id: '2', name: 'Alice', email: 'alice@example.com' },
-  { id: '3', name: 'Bob', email: 'bob@example.com' },
-];
+import { Project } from '@/types';
+import { api } from '@/lib/api';
 
 export default function Contributors() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [project, setProject] = useState<Project | null>(null);
   const { data: contributors = [], isLoading } = useContributorsWithSkills();
+
+  useEffect(() => {
+    if (id) {
+      api.getProjectById(id).then(setProject).catch(() => {});
+    }
+  }, [id]);
+
+  const members = project?.members || [];
 
   return (
     <div className="flex min-h-screen bg-background">
-      <ProjectSidebar projectName="Project" members={mockMembers} onAddMember={() => {}} />
+      <ProjectSidebar projectName={project?.name || 'Project'} members={members} onAddMember={() => {}} />
       <div className="flex-1 flex flex-col">
         <header className="h-16 border-b border-border bg-card flex items-center px-6">
           <div className="flex items-center gap-2">

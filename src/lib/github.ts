@@ -11,7 +11,19 @@ function headers(token?: string): HeadersInit {
 
 export async function fetchRepoInfo(owner: string, repo: string, token?: string): Promise<GitHubRepo> {
   const res = await fetch(`${BASE}/repos/${owner}/${repo}`, { headers: headers(token) });
-  if (!res.ok) throw new Error(`GitHub API error: ${res.status}`);
+  if (!res.ok) {
+    if (res.status === 403) {
+      const body = await res.json().catch(() => ({}));
+      if (body.message?.includes('rate limit')) {
+        throw new Error('GitHub API rate limit exceeded. Please go back and add a Personal Access Token.');
+      }
+      throw new Error('GitHub API access forbidden (403). Try adding a Personal Access Token.');
+    }
+    if (res.status === 404) {
+      throw new Error('Repository not found. Check the owner/repo name.');
+    }
+    throw new Error(`GitHub API error: ${res.status}`);
+  }
   const d = await res.json();
   return {
     name: d.name,

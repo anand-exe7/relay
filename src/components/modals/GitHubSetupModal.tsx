@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { setGitHubConfig, fetchRepoInfo } from '@/lib/github';
+import { fetchRepoInfo } from '@/lib/github';
+import { api } from '@/lib/api';
 import { GitHubRepo } from '@/types';
 import { Github, CheckCircle, AlertCircle, ExternalLink, Loader2 } from 'lucide-react';
 
@@ -21,6 +23,7 @@ export function GitHubSetupModal({ open, onClose, onConnected, projectId }: GitH
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [repoInfo, setRepoInfo] = useState<GitHubRepo | null>(null);
+  const queryClient = useQueryClient();
 
   const parseRepoUrl = (url: string): { owner: string; repo: string } | null => {
     const cleaned = url.replace(/^https?:\/\//, '').replace(/^github\.com\//, '').replace(/\.git$/, '').trim();
@@ -39,21 +42,34 @@ export function GitHubSetupModal({ open, onClose, onConnected, projectId }: GitH
       setRepoInfo(info);
       setStep(3);
     } catch (e: any) {
-      setError(e.message.includes('404') ? 'Repository not found. Check the URL and permissions.' : `Error: ${e.message}`);
+      setError(e.message || 'Failed to validate repository');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
+    if (!projectId) return;
     const parsed = parseRepoUrl(repoUrl)!;
-    setGitHubConfig(token, parsed.owner, parsed.repo, projectId);
-    onConnected();
-    onClose();
-    setStep(1);
-    setToken('');
-    setRepoUrl('');
-    setRepoInfo(null);
+    setLoading(true);
+    setError('');
+    try {
+      // Save to backend
+      await api.setProjectGitHub(projectId, parsed.owner, parsed.repo, token);
+      // Invalidate GitHub config cache so hooks refetch
+      queryClient.invalidateQueries({ queryKey: ['github-config', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['github'] });
+      onConnected();
+      onClose();
+      setStep(1);
+      setToken('');
+      setRepoUrl('');
+      setRepoInfo(null);
+    } catch (e: any) {
+      setError(e.response?.data?.error || 'Failed to save GitHub config');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -126,10 +142,15 @@ export function GitHubSetupModal({ open, onClose, onConnected, projectId }: GitH
                 )}
               </div>
             </div>
+            {error && (
+              <p className="text-sm text-destructive flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" /> {error}
+              </p>
+            )}
             <div className="flex justify-between">
               <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
-              <Button onClick={handleConnect} className="bg-sage text-sage-foreground hover:bg-sage/90">
-                Connect Repository
+              <Button onClick={handleConnect} disabled={loading} className="bg-sage text-sage-foreground hover:bg-sage/90">
+                {loading ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Connecting...</> : 'Connect Repository'}
               </Button>
             </div>
           </div>
