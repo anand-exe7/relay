@@ -1,10 +1,11 @@
-// src/lib/api.ts - Add console logs for debugging
-import axios from 'axios';
+// src/lib/api.ts - Axios API client with enhanced debugging
+import axios, { AxiosError } from 'axios';
 import { Project, Task, User, Message, Notification } from '@/types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-console.log('API URL:', API_URL); // Debug log
+console.log('🔌 API URL:', API_URL);
+console.log('🔌 Environment:', import.meta.env.MODE);
 
 const apiClient = axios.create({
   baseURL: API_URL,
@@ -12,29 +13,48 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
   withCredentials: true,
+  timeout: 30000,
 });
 
-apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  console.log('API Request:', config.method?.toUpperCase(), config.url); // Debug log
-  return config;
-});
-
-apiClient.interceptors.response.use(
-  (response) => {
-    console.log('API Response:', response.config.url, response.status); // Debug log
-    return response;
+// Request interceptor
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    console.log(`📤 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    return config;
   },
   (error) => {
-    console.error('API Error:', error.config?.url, error.response?.status, error.response?.data); // Debug log
-    if (error.response?.status === 401) {
+    console.error('❌ Request Error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor
+apiClient.interceptors.response.use(
+  (response) => {
+    console.log(`✅ API Response: ${response.config.url} [${response.status}]`);
+    return response;
+  },
+  (error: AxiosError) => {
+    const status = error.response?.status;
+    const data = error.response?.data as any;
+
+    console.error(`❌ API Error: ${error.config?.url} [${status}]`, data?.error || data?.message || error.message);
+
+    if (status === 401) {
+      console.warn('🔐 Unauthorized - Logging out');
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
+
+    if (status === 0 || error.message === 'Network Error') {
+      console.error('🌐 Network error - Is the backend server running?');
+    }
+
     return Promise.reject(error);
   }
 );
@@ -42,23 +62,35 @@ apiClient.interceptors.response.use(
 export const api = {
   // Auth operations
   async register(name: string, email: string, password: string) {
-    console.log('Registering user:', email);
-    const { data } = await apiClient.post('/auth/register', { name, email, password });
-    if (data.token) {
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+    try {
+      console.log('👤 Registering user:', email);
+      const { data } = await apiClient.post('/auth/register', { name, email, password });
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        console.log('✨ Registration successful');
+      }
+      return data;
+    } catch (error) {
+      console.error('❌ Registration failed:', error);
+      throw error;
     }
-    return data;
   },
 
   async login(email: string, password: string) {
-    console.log('Logging in user:', email);
-    const { data } = await apiClient.post('/auth/login', { email, password });
-    if (data.token) {
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+    try {
+      console.log('🔑 Logging in user:', email);
+      const { data } = await apiClient.post('/auth/login', { email, password });
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        console.log('✨ Login successful');
+      }
+      return data;
+    } catch (error) {
+      console.error('❌ Login failed:', error);
+      throw error;
     }
-    return data;
   },
 
   async getCurrentUser() {
@@ -107,10 +139,10 @@ export const api = {
     return data;
   },
 
-  async createTask(projectId: string, taskData: { 
-    title: string; 
-    description?: string; 
-    priority?: string; 
+  async createTask(projectId: string, taskData: {
+    title: string;
+    description?: string;
+    priority?: string;
     assignedTo?: string;
     dueDate?: Date;
   }): Promise<Task> {
@@ -158,5 +190,15 @@ export const api = {
 
   async markAllNotificationsRead(): Promise<void> {
     await apiClient.put('/notifications/read-all');
+  },
+
+  async setProjectGitHub(projectId: string, repoOwner: string, repoName: string, token: string): Promise<Project> {
+    const { data } = await apiClient.put(`/projects/${projectId}/github`, { repoOwner, repoName, token });
+    return data;
+  },
+
+  async getProjectGitHub(projectId: string): Promise<{ repoOwner: string; repoName: string; token: string; connected: boolean }> {
+    const { data } = await apiClient.get(`/projects/${projectId}/github`);
+    return data;
   },
 };

@@ -8,6 +8,9 @@ interface KanbanColumnProps {
   members: User[];
   onTaskStatusChange: (taskId: string, status: TaskStatus) => void;
   onTaskAssign: (taskId: string, memberId: string) => void;
+  onDeleteTask?: (taskId: string) => void;
+  currentUserId?: string;
+  isAdmin?: boolean;
 }
 
 const columnStyles: Record<TaskStatus, { bg: string; border: string; badge: string }> = {
@@ -35,6 +38,9 @@ export function KanbanColumn({
   members,
   onTaskStatusChange,
   onTaskAssign,
+  onDeleteTask,
+  currentUserId,
+  isAdmin = false,
 }: KanbanColumnProps) {
   const styles = columnStyles[status];
 
@@ -57,6 +63,9 @@ export function KanbanColumn({
             members={members}
             onStatusChange={(newStatus) => onTaskStatusChange(task.id, newStatus)}
             onAssign={(memberId) => onTaskAssign(task.id, memberId)}
+            onDelete={onDeleteTask ? () => onDeleteTask(task.id) : undefined}
+            currentUserId={currentUserId}
+            isAdmin={isAdmin}
           />
         ))}
 
